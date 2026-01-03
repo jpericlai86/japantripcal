@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>東京旅遊記帳 & 回贈計算</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #121212; color: #e0e0e0; }
+        .scroll-hide::-webkit-scrollbar { display: none; }
+        .scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .glass { background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        input, select { background-color: #2d2d2d; border: 1px solid #444; color: white; }
+        input:focus, select:focus { outline: none; border-color: #3b82f6; }
+    </style>
+</head>
+<body class="pb-20">
+
+    <div class="sticky top-0 z-50 bg-[#121212] border-b border-gray-800 p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+            Tokyo Trip 🇯🇵
+        </h1>
+        <div class="flex items-center text-sm">
+            <span class="mr-2 text-gray-400">匯率 (JPY→HKD):</span>
+            <input type="number" id="exchangeRate" value="0.052" step="0.001" class="w-20 px-2 py-1 rounded text-right font-mono" onchange="updateCalculations()">
+        </div>
+    </div>
+
+    <div class="py-4 bg-[#181818]">
+        <div id="dateScroller" class="flex overflow-x-auto space-x-3 px-4 scroll-hide">
+            </div>
+    </div>
+
+    <div class="px-4 mb-6">
+        <div class="glass p-5 rounded-xl shadow-lg">
+            <h2 class="text-lg font-bold mb-4 text-gray-300">新增記帳</h2>
+            <div class="grid grid-cols-1 gap-4">
+                <div class="flex gap-2">
+                    <button type="button" id="btnEric" class="flex-1 py-2 rounded-lg border border-blue-600 bg-blue-600/20 text-blue-400 font-bold" onclick="selectPerson('Eric')">Eric</button>
+                    <button type="button" id="btnClement" class="flex-1 py-2 rounded-lg border border-gray-600 text-gray-400" onclick="selectPerson('Clement')">Clement</button>
+                </div>
+                
+                <input type="number" id="amount" placeholder="金額 (JPY)" class="w-full p-3 rounded-lg text-lg">
+                <input type="text" id="item" placeholder="項目 (例如: 拉麵)" class="w-full p-3 rounded-lg">
+                
+                <select id="cardSelect" class="w-full p-3 rounded-lg">
+                    <option value="Eric's MM power">Eric's MM power</option>
+                    <option value="Clement's MM power">Clement's MM power</option>
+                    <option value="恒生Travel+">恒生Travel+</option>
+                    <option value="Sim card">Sim card</option>
+                    <option value="中銀chill">中銀chill</option>
+                    <option value="中銀cheers">中銀cheers</option>
+                    <option value="建行travo">建行travo</option>
+                    <option value="Earnmore">Earnmore</option>
+                </select>
+
+                <button onclick="addRecord()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-3 rounded-lg shadow-lg transform active:scale-95 transition">
+                    加入紀錄
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="px-4 mb-8">
+        <h3 class="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">當日明細 (<span id="currentDateDisplay"></span>)</h3>
+        <div id="dailyList" class="space-y-3">
+            </div>
+        <div class="mt-4 p-3 bg-[#252525] rounded-lg flex justify-between items-center border border-gray-700">
+            <span class="text-gray-400">當日總計:</span>
+            <div class="text-right">
+                <div class="text-white font-bold">¥<span id="dailyTotalJpy">0</span></div>
+                <div class="text-xs text-gray-500">HKD $<span id="dailyTotalHkd">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <hr class="border-gray-800 my-8">
+
+    <div class="px-4 mb-20">
+        <h2 class="text-xl font-bold mb-4 text-center">消費分析 & 回贈</h2>
+        
+        <div class="glass p-4 rounded-xl mb-6">
+            <h3 class="text-center text-gray-300 mb-2 font-bold">Eric vs Clement 總支出 (HKD)</h3>
+            <div class="h-48">
+                <canvas id="personChart"></canvas>
+            </div>
+            <div class="flex justify-around mt-4 text-sm font-mono">
+                <div class="text-blue-400">Eric: $<span id="totalEric">0</span></div>
+                <div class="text-purple-400">Clement: $<span id="totalClement">0</span></div>
+            </div>
+        </div>
+
+        <div class="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 border border-orange-500/30 p-4 rounded-xl mb-6 text-center">
+            <div class="text-gray-400 text-sm">預計總回贈金額</div>
+            <div class="text-3xl font-bold text-yellow-400">$<span id="grandTotalRebate">0.00</span></div>
+        </div>
+
+        <h3 class="text-gray-300 mb-4 font-bold pl-2 border-l-4 border-blue-500">各卡回贈進度 (HKD)</h3>
+        <div id="cardsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            </div>
+    </div>
+
+    <div class="fixed bottom-6 right-6 z-50">
+        <button onclick="clearAllData()" class="bg-red-600/90 hover:bg-red-700 text-white p-4 rounded-full shadow-2xl flex items-center justify-center w-14 h-14">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        // --- Configuration & Data ---
+        const cardRules = {
+            "Eric's MM power":    { min: 5000, max: 8929, rate: 0.06 },
+            "Clement's MM power": { min: 5000, max: 8929, rate: 0.06 },
+            "恒生Travel+":        { min: 6000, max: 7576, rate: 0.07 },
+            "Sim card":           { min: 1000, max: 2500, rate: 0.08 },
+            "中銀chill":          { min: 0,    max: 3260, rate: 0.05 },
+            "中銀cheers":         { min: 5000, max: 25000, rate: 0.04 },
+            "建行travo":          { min: 0,    max: 44444, rate: 0.04 },
+            "Earnmore":           { min: 0,    max: 80000, rate: 0.02 }
+        };
+
+        let records = JSON.parse(localStorage.getItem('tokyo_records')) || [];
+        let currentPerson = "Eric";
+        let selectedDate = new Date().toISOString().split('T')[0];
+        let chartInstances = {};
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDates();
+            updateCalculations();
+        });
+
+        // --- Core Logic ---
+
+        function selectPerson(person) {
+            currentPerson = person;
+            document.getElementById('btnEric').className = person === 'Eric' 
+                ? "flex-1 py-2 rounded-lg border border-blue-600 bg-blue-600/20 text-blue-400 font-bold transition" 
+                : "flex-1 py-2 rounded-lg border border-gray-600 text-gray-400 transition";
+            document.getElementById('btnClement').className = person === 'Clement' 
+                ? "flex-1 py-2 rounded-lg border border-purple-600 bg-purple-600/20 text-purple-400 font-bold transition" 
+                : "flex-1 py-2 rounded-lg border border-gray-600 text-gray-400 transition";
+        }
+
+        function addRecord() {
+            const amount = parseFloat(document.getElementById('amount').value);
+            const item = document.getElementById('item').value;
+            const card = document.getElementById('cardSelect').value;
+            
+            if (!amount || !item) {
+                alert("請填寫金額和項目！");
+                return;
+            }
+
+            records.push({
+                id: Date.now(),
+                date: selectedDate,
+                person: currentPerson,
+                amountJpy: amount,
+                item: item,
+                card: card
+            });
+
+            saveData();
+            document.getElementById('amount').value = '';
+            document.getElementById('item').value = '';
+            updateCalculations();
+        }
+
+        function deleteRecord(id) {
+            if(confirm("確定刪除此項目?")) {
+                records = records.filter(r => r.id !== id);
+                saveData();
+                updateCalculations();
+            }
+        }
+
+        function clearAllData() {
+            if (confirm("⚠️ 警告：這將清除所有記帳紀錄，確定嗎？")) {
+                records = [];
+                saveData();
+                updateCalculations();
+                alert("已清除所有紀錄");
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('tokyo_records', JSON.stringify(records));
+        }
+
+        function getExchangeRate() {
+            return parseFloat(document.getElementById('exchangeRate').value) || 0.052;
+        }
+
+        // --- Rendering ---
+
+        function renderDates() {
+            const scroller = document.getElementById('dateScroller');
+            scroller.innerHTML = '';
+            
+            // Generate dates: 5 days before to 5 days after today, or based on existing records
+            let dates = new Set([new Date().toISOString().split('T')[0]]);
+            records.forEach(r => dates.add(r.date));
+            
+            // Add some context dates
+            let base = new Date();
+            for(let i=-3; i<=3; i++) {
+                let d = new Date();
+                d.setDate(base.getDate() + i);
+                dates.add(d.toISOString().split('T')[0]);
+            }
+
+            const sortedDates = Array.from(dates).sort();
+
+            sortedDates.forEach(date => {
+                const btn = document.createElement('button');
+                const isSelected = date === selectedDate;
+                btn.className = `flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition ${isSelected ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`;
+                btn.innerText = date.substring(5).replace('-', '/'); // Show MM/DD
+                btn.onclick = () => {
+                    selectedDate = date;
+                    renderDates(); // Re-render to update active class
+                    updateCalculations();
+                };
+                scroller.appendChild(btn);
+            });
+            
+            document.getElementById('currentDateDisplay').innerText = selectedDate;
+        }
+
+        function updateCalculations() {
+            const rate = getExchangeRate();
+            
+            // 1. Render List for Selected Date
+            const listEl = document.getElementById('dailyList');
+            listEl.innerHTML = '';
+            const dayRecords = records.filter(r => r.date === selectedDate);
+            
+            let dayTotalJpy = 0;
+
+            dayRecords.forEach(r => {
+                dayTotalJpy += r.amountJpy;
+                const hkdVal = (r.amountJpy * rate).toFixed(1);
+                
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-[#252525] p-3 rounded-lg border-l-4 " + (r.person === 'Eric' ? "border-blue-500" : "border-purple-500");
+                div.innerHTML = `
+                    <div>
+                        <div class="font-bold text-gray-200">${r.item} <span class="text-xs font-normal text-gray-500 ml-1">(${r.card})</span></div>
+                        <div class="text-xs text-gray-400">${r.person}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <div class="text-white font-mono">¥${r.amountJpy}</div>
+                            <div class="text-xs text-gray-500 font-mono">HKD $${hkdVal}</div>
+                        </div>
+                        <button onclick="deleteRecord(${r.id})" class="text-red-500 hover:text-red-400">✕</button>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+
+            if(dayRecords.length === 0) {
+                listEl.innerHTML = '<div class="text-center text-gray-600 py-4">今天還沒有記帳</div>';
+            }
+
+            document.getElementById('dailyTotalJpy').innerText = dayTotalJpy;
+            document.getElementById('dailyTotalHkd').innerText = (dayTotalJpy * rate).toFixed(1);
+
+            // 2. Calculate Totals for Charts
+            let ericTotalHKD = 0;
+            let clementTotalHKD = 0;
+            let cardSpending = {};
+
+            // Initialize card spending
+            Object.keys(cardRules).forEach(c => cardSpending[c] = 0);
+
+            records.forEach(r => {
+                const hkd = r.amountJpy * rate;
+                if (r.person === 'Eric') ericTotalHKD += hkd;
+                else clementTotalHKD += hkd;
+                
+                if (cardSpending[r.card] !== undefined) {
+                    cardSpending[r.card] += hkd;
+                }
+            });
+
+            document.getElementById('totalEric').innerText = ericTotalHKD.toFixed(1);
+            document.getElementById('totalClement').innerText = clementTotalHKD.toFixed(1);
+
+            renderPersonChart(ericTotalHKD, clementTotalHKD);
+            renderCardCharts(cardSpending);
+        }
+
+        // --- Chart Logic ---
+
+        function renderPersonChart(eric, clement) {
+            const ctx = document.getElementById('personChart').getContext('2d');
+            if (chartInstances['person']) chartInstances['person'].destroy();
+
+            chartInstances['person'] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Eric', 'Clement'],
+                    datasets: [{
+                        data: [eric, clement],
+                        backgroundColor: ['#3b82f6', '#a855f7'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: 'white' } } }
+                }
+            });
+        }
+
+        function renderCardCharts(spendingMap) {
+            const container = document.getElementById('cardsGrid');
+            container.innerHTML = '';
+            let totalRebate = 0;
+
+            Object.keys(cardRules).forEach(cardName => {
+                const spent = spendingMap[cardName];
+                const rule = cardRules[cardName];
+                const limitMin = rule.min;
+                const limitMax = rule.max;
+                
+                // Calculate Rebate
+                let rebate = 0;
+                let statusColor = ''; // Helper for UI text
+                let statusText = '';
+                
+                // Data for Pie Chart segments
+                // Segments: [Below Min (Red), Within Limit (Green), Over Limit (Orange), Remaining to Max (Gray)]
+                let dataPoints = []; 
+                let bgColors = [];
+                let labels = [];
+
+                if (spent < limitMin) {
+                    // Scenario 1: Not reached min yet
+                    rebate = 0;
+                    statusText = `尚欠 $${(limitMin - spent).toFixed(0)} 達標`;
+                    statusColor = 'text-red-400';
+                    
+                    dataPoints = [spent, limitMin - spent];
+                    bgColors = ['#ef4444', '#374151']; // Red (spent but invalid), Dark Gray (remaining to min)
+                    labels = ['未達標支出', '剩餘達標額'];
+
+                } else if (spent <= limitMax) {
+                    // Scenario 2: Eligible range
+                    rebate = spent * rule.rate;
+                    statusText = `回贈生效中 (${(rule.rate*100).toFixed(0)}%)`;
+                    statusColor = 'text-green-400';
+
+                    dataPoints = [limitMin, spent - limitMin, limitMax - spent];
+                    // Min part (Dark Green), Active part (Bright Green), Remaining Cap (Gray)
+                    bgColors = ['#166534', '#22c55e', '#374151']; 
+                    labels = ['基礎門檻', '合資格支出', '剩餘回贈額度'];
+
+                } else {
+                    // Scenario 3: Over limit
+                    rebate = limitMax * rule.rate;
+                    statusText = `已達回贈上限`;
+                    statusColor = 'text-yellow-500';
+
+                    dataPoints = [limitMin, limitMax - limitMin, spent - limitMax];
+                    // Min part (Dark Green), Max part (Bright Green), Excess (Orange)
+                    bgColors = ['#166534', '#22c55e', '#f59e0b']; 
+                    labels = ['基礎門檻', '合資格支出', '超出上限'];
+                }
+
+                totalRebate += rebate;
+
+                // Create Card HTML
+                const cardDiv = document.createElement('div');
+                cardDiv.className = "glass p-4 rounded-xl flex flex-col items-center relative";
+                
+                const canvasId = `chart-${cardName.replace(/\s/g, '')}`;
+                
+                cardDiv.innerHTML = `
+                    <div class="text-sm font-bold mb-1 w-full text-left">${cardName}</div>
+                    <div class="text-xs ${statusColor} mb-2 w-full text-left">${statusText}</div>
+                    <div class="relative w-32 h-32">
+                        <canvas id="${canvasId}"></canvas>
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span class="text-xs font-bold text-gray-300">$${Math.floor(rebate)}<br>回贈</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-500 w-full flex justify-between">
+                        <span>總簽: $${Math.floor(spent)}</span>
+                        <span>上限: $${limitMax}</span>
+                    </div>
+                `;
+                container.appendChild(cardDiv);
+
+                // Draw Chart
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+
+                chartInstances[canvasId] = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: dataPoints,
+                            backgroundColor: bgColors,
+                            borderWidth: 0,
+                            cutout: '70%'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { enabled: true } }
+                    }
+                });
+            });
+
+            document.getElementById('grandTotalRebate').innerText = totalRebate.toFixed(1);
+        }
+    </script>
+</body>
+</html>
