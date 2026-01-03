@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>東京旅費 Tōkyō Trip</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'jp-bg': '#111827', // 深炭灰背景
+                        'jp-card': '#1F2937', // 卡片深灰
+                        'jp-input': '#374151', // 輸入框灰
+                        'jp-primary': '#FCD34D', // 亮金色
+                        'jp-accent': '#10B981', // 螢光綠 (合資格)
+                        'jp-text': '#F3F4F6', // 米白文字
+                        'jp-sub': '#9CA3AF', // 淺灰副標
+                        'jp-warn': '#EF4444', // 紅色警告
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #111827;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #F3F4F6;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 隱藏 Scrollbar 但保留功能 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .date-item.active {
+            background-color: #FCD34D;
+            color: #1F2937; /* 深色字 */
+            font-weight: bold;
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(252, 211, 77, 0.3);
+            border-color: #FCD34D;
+        }
+        .ios-input {
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 12px;
+            width: 100%;
+            background: #374151;
+            color: white;
+            transition: all 0.2s;
+        }
+        .ios-input::placeholder {
+            color: #9CA3AF;
+        }
+        .ios-input:focus {
+            background: #4B5563;
+            border-color: #FCD34D;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(252, 211, 77, 0.2);
+        }
+        .card-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239CA3AF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+    </style>
+</head>
+<body class="pb-20">
+
+    <!-- Header & Rate -->
+    <header class="fixed top-0 w-full bg-jp-bg/95 backdrop-blur-sm z-50 border-b border-gray-800 shadow-lg max-w-md mx-auto left-0 right-0">
+        <div class="flex justify-between items-center px-5 py-4">
+            <div>
+                <h1 class="text-xl font-bold tracking-widest text-jp-text">東京旅費</h1>
+                <p class="text-xs text-jp-sub">Tokyo Trip 2025</p>
+            </div>
+            <div class="text-right cursor-pointer group" onclick="editRate()">
+                <p class="text-xs text-jp-sub group-hover:text-jp-primary transition-colors">匯率 (點擊修改)</p>
+                <p class="text-lg font-bold text-jp-primary">JPY 100 = HKD <span id="rateDisplay">0.00</span></p>
+            </div>
+        </div>
+        
+        <!-- Date Scroller -->
+        <div class="flex overflow-x-auto space-x-3 px-4 pb-3 no-scrollbar" id="dateScroller">
+            <!-- JS Generated Dates -->
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-md mx-auto pt-36 px-4 space-y-6">
+
+        <!-- Input Form -->
+        <div class="bg-jp-card p-5 rounded-2xl shadow-lg border border-gray-800">
+            <h2 class="text-sm font-bold text-jp-text mb-3 border-l-4 border-jp-primary pl-2">新增消費</h2>
+            
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="flex bg-gray-900 rounded-xl p-1 relative border border-gray-700">
+                    <div class="w-1/2 text-center py-2 rounded-lg cursor-pointer transition-all duration-300 font-medium text-sm" 
+                         id="btnEric" onclick="selectPerson('Eric')">Eric</div>
+                    <div class="w-1/2 text-center py-2 rounded-lg cursor-pointer transition-all duration-300 font-medium text-sm text-gray-500" 
+                         id="btnClement" onclick="selectPerson('Clement')">Clement</div>
+                    <input type="hidden" id="inputPerson" value="Eric">
+                </div>
+                <input type="number" id="inputAmount" placeholder="金額 (JPY)" class="ios-input text-right font-mono text-lg" inputmode="numeric">
+            </div>
+
+            <div class="space-y-3">
+                <input type="text" id="inputItem" placeholder="項目 (例如: 一蘭拉麵)" class="ios-input">
+                
+                <div class="relative">
+                    <select id="inputCard" class="ios-input card-select pr-10 text-sm">
+                        <option value="Eric's MM power">Eric's MM power (6%)</option>
+                        <option value="Clement's MM power">Clement's MM power (6%)</option>
+                        <option value="恒生Travel+">恒生Travel+ (7%)</option>
+                        <option value="Sim card">Sim card (8%)</option>
+                        <option value="中銀chill">中銀chill (5%)</option>
+                        <option value="中銀cheers">中銀cheers (4%)</option>
+                        <option value="建行travo">建行travo (4%)</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="addExpense()" class="w-full mt-4 bg-jp-primary hover:bg-yellow-400 text-gray-900 font-bold py-3 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-plus"></i> 記帳
+            </button>
+        </div>
+
+        <!-- Today's List -->
+        <div class="bg-jp-card rounded-2xl shadow-lg border border-gray-800 overflow-hidden">
+            <div class="bg-gray-800/50 px-5 py-3 flex justify-between items-center border-b border-gray-700">
+                <h2 class="text-sm font-bold text-jp-text">當日明細</h2>
+                <div class="text-xs text-jp-sub">
+                    Eric: <span id="dailyEric" class="font-mono text-gray-300">¥0</span> | 
+                    Clement: <span id="dailyClement" class="font-mono text-gray-300">¥0</span>
+                </div>
+            </div>
+            <div id="expenseList" class="divide-y divide-gray-700">
+                <!-- JS Generated List -->
+                <div class="p-8 text-center text-gray-500 text-sm">暫無紀錄</div>
+            </div>
+        </div>
+
+        <!-- Analysis Section -->
+        <div>
+            <h2 class="text-lg font-bold text-jp-text mb-4 flex items-center gap-2 mt-8">
+                <i class="fa-solid fa-chart-pie text-jp-primary"></i> 旅費分析與回贈
+            </h2>
+
+            <!-- Total Summary Cards -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-jp-card p-4 rounded-2xl shadow-lg border-t-4 border-blue-500 text-center">
+                    <p class="text-xs text-gray-400 mb-1">Eric 總支出</p>
+                    <p class="text-xl font-bold text-gray-200 font-mono" id="totalEricHKD">HKD 0</p>
+                    <p class="text-xs text-gray-500 font-mono" id="totalEricJPY">¥ 0</p>
+                </div>
+                <div class="bg-jp-card p-4 rounded-2xl shadow-lg border-t-4 border-green-500 text-center">
+                    <p class="text-xs text-gray-400 mb-1">Clement 總支出</p>
+                    <p class="text-xl font-bold text-gray-200 font-mono" id="totalClementHKD">HKD 0</p>
+                    <p class="text-xs text-gray-500 font-mono" id="totalClementJPY">¥ 0</p>
+                </div>
+            </div>
+
+            <!-- Grand Total Rebate -->
+            <div class="bg-jp-primary/10 p-4 rounded-2xl border border-jp-primary/30 mb-6 flex justify-between items-center backdrop-blur-sm">
+                <div>
+                    <p class="text-sm font-bold text-jp-primary">預計總現金回贈</p>
+                    <p class="text-xs text-gray-400">所有信用卡合計</p>
+                </div>
+                <p class="text-2xl font-bold text-jp-primary font-mono" id="grandTotalRebate">HKD 0</p>
+            </div>
+
+            <!-- Credit Card Charts Grid -->
+            <div id="cardsGrid" class="grid grid-cols-1 gap-6">
+                <!-- JS Generated Charts -->
+            </div>
+        </div>
+
+        <!-- Clear Data Section -->
+        <div class="mt-12 mb-8 pt-8 border-t border-gray-800 text-center">
+             <button onclick="clearAllData()" class="text-red-400 hover:text-red-300 text-sm font-medium transition-colors flex items-center justify-center gap-2 w-full py-4 rounded-xl hover:bg-red-900/10">
+                <i class="fa-solid fa-trash-can"></i> 清除所有紀錄 (Reset)
+            </button>
+            <p class="text-xs text-gray-600 mt-2">此操作無法復原</p>
+        </div>
+
+        <div class="h-10"></div>
+    </main>
+
+    <script>
+        // --- 1. Data & State ---
+        const DEFAULT_RATE = 5.2; // HKD per 100 JPY
+        let state = {
+            expenses: JSON.parse(localStorage.getItem('tokyo_expenses')) || [],
+            rate: parseFloat(localStorage.getItem('tokyo_rate')) || DEFAULT_RATE,
+            selectedDate: new Date().toISOString().split('T')[0],
+            selectedPerson: 'Eric'
+        };
+
+        const cardRules = {
+            "Eric's MM power": { min: 5000, max: 8929, rate: 0.06 },
+            "Clement's MM power": { min: 5000, max: 8929, rate: 0.06 },
+            "恒生Travel+": { min: 6000, max: 7576, rate: 0.07 },
+            "Sim card": { min: 1000, max: 2500, rate: 0.08 },
+            "中銀chill": { min: 0, max: 3260, rate: 0.05 },
+            "中銀cheers": { min: 5000, max: 25000, rate: 0.04 },
+            "建行travo": { min: 0, max: 44444, rate: 0.04 }
+        };
+
+        // --- 2. Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initDateScroller();
+            renderRate();
+            selectPerson('Eric'); // Default UI state
+            updateUI();
+        });
+
+        // --- 3. Core Functions ---
+
+        function saveState() {
+            localStorage.setItem('tokyo_expenses', JSON.stringify(state.expenses));
+            localStorage.setItem('tokyo_rate', state.rate);
+            updateUI();
+        }
+
+        function editRate() {
+            // Dark mode friendly prompt workaround is hard in pure JS, using standard prompt
+            const newRate = prompt("輸入匯率 (每 100 日元兌港幣):", state.rate);
+            if (newRate && !isNaN(newRate)) {
+                state.rate = parseFloat(newRate);
+                saveState();
+                renderRate();
+            }
+        }
+
+        function renderRate() {
+            document.getElementById('rateDisplay').innerText = state.rate.toFixed(2);
+        }
+
+        function selectPerson(person) {
+            state.selectedPerson = person;
+            document.getElementById('inputPerson').value = person;
+            
+            const btnEric = document.getElementById('btnEric');
+            const btnClement = document.getElementById('btnClement');
+            
+            // Dark mode toggle logic
+            if (person === 'Eric') {
+                btnEric.className = "w-1/2 text-center py-2 rounded-lg cursor-pointer transition-all duration-300 font-bold text-sm bg-jp-primary text-gray-900 shadow-sm";
+                btnClement.className = "w-1/2 text-center py-2 rounded-lg cursor-pointer transition-all duration-300 font-medium text-sm text-gray-500 hover:text-gray-300";
+            } else {
+                btnClement.className = "w-1/2 text-center py-2 rounded-lg cursor-pointer transition-all duration-300 font-bold text-sm bg-jp-primary text-gray-900 shadow-sm";
+                btnEric.className = "w-1/2 text-center py-2 rounded-lg cursor-pointer transition-all duration-300 font-medium text-sm text-gray-500 hover:text-gray-300";
+            }
+        }
+
+        function initDateScroller() {
+            const scroller = document.getElementById('dateScroller');
+            scroller.innerHTML = '';
+            
+            const today = new Date();
+            for (let i = -7; i <= 7; i++) {
+                const date = new Date(today);
+                date.setDate(today.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayStr = date.toLocaleDateString('zh-HK', { month: 'numeric', day: 'numeric' });
+                const weekStr = date.toLocaleDateString('zh-HK', { weekday: 'short' });
+
+                const el = document.createElement('div');
+                // Dark mode class adjustment
+                el.className = `date-item flex-shrink-0 w-16 h-20 rounded-xl flex flex-col justify-center items-center cursor-pointer transition-all border border-gray-700 bg-gray-800 text-gray-300 ${dateStr === state.selectedDate ? 'active' : ''}`;
+                
+                el.onclick = () => {
+                    state.selectedDate = dateStr;
+                    document.querySelectorAll('.date-item').forEach(d => {
+                        d.classList.remove('active');
+                        d.classList.add('bg-gray-800', 'text-gray-300', 'border-gray-700'); // Reset to dark style
+                    });
+                    el.classList.add('active');
+                    el.classList.remove('bg-gray-800', 'text-gray-300', 'border-gray-700'); // Remove dark style when active (uses CSS class)
+                    updateUI();
+                };
+                el.innerHTML = `
+                    <span class="text-xs opacity-70">${weekStr}</span>
+                    <span class="text-lg font-bold">${dayStr}</span>
+                `;
+                scroller.appendChild(el);
+                
+                if (i === 0) {
+                    setTimeout(() => {
+                        scroller.scrollTo({ left: el.offsetLeft - scroller.clientWidth/2 + el.clientWidth/2, behavior: 'smooth' });
+                    }, 100);
+                }
+            }
+        }
+
+        function addExpense() {
+            const amt = parseFloat(document.getElementById('inputAmount').value);
+            const item = document.getElementById('inputItem').value;
+            const card = document.getElementById('inputCard').value;
+            const person = state.selectedPerson;
+
+            if (!amt || !item) {
+                alert("請輸入金額和項目");
+                return;
+            }
+
+            state.expenses.push({
+                id: Date.now(),
+                date: state.selectedDate,
+                person,
+                amountJPY: amt,
+                item,
+                card
+            });
+
+            document.getElementById('inputAmount').value = '';
+            document.getElementById('inputItem').value = '';
+            
+            saveState();
+        }
+
+        function deleteExpense(id) {
+            if(confirm('確定刪除此紀錄？')) {
+                state.expenses = state.expenses.filter(e => e.id !== id);
+                saveState();
+            }
+        }
+        
+        // New Function: Clear All Data
+        function clearAllData() {
+            const confirm1 = confirm("⚠️ 警告：這將會刪除所有記帳資料！\n\n確定要執行嗎？");
+            if (confirm1) {
+                const confirm2 = confirm("再次確認：資料刪除後無法復原。\n\n真的要刪除嗎？");
+                if (confirm2) {
+                    state.expenses = [];
+                    // We keep the rate setting as it is usually preferred
+                    localStorage.setItem('tokyo_expenses', JSON.stringify([]));
+                    updateUI();
+                    alert("所有紀錄已清除。");
+                }
+            }
+        }
+
+        // --- 4. Logic & Calculations ---
+
+        function updateUI() {
+            renderDailyList();
+            renderCharts();
+        }
+
+        function renderDailyList() {
+            const list = document.getElementById('expenseList');
+            const dailyData = state.expenses.filter(e => e.date === state.selectedDate);
+            
+            let dailyEricTotal = 0;
+            let dailyClementTotal = 0;
+
+            if (dailyData.length === 0) {
+                list.innerHTML = `<div class="p-8 text-center text-gray-600 text-sm flex flex-col items-center"><i class="fa-solid fa-receipt text-2xl mb-2 opacity-50"></i>暫無紀錄</div>`;
+            } else {
+                list.innerHTML = dailyData.map(e => {
+                    if (e.person === 'Eric') dailyEricTotal += e.amountJPY;
+                    if (e.person === 'Clement') dailyClementTotal += e.amountJPY;
+                    
+                    const hkd = (e.amountJPY * (state.rate / 100)).toFixed(1);
+
+                    return `
+                    <div class="px-5 py-3 flex justify-between items-center group bg-jp-card hover:bg-gray-800 transition-colors border-b border-gray-800 last:border-0">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-bold px-2 py-0.5 rounded ${e.person === 'Eric' ? 'bg-blue-900/50 text-blue-300' : 'bg-green-900/50 text-green-300'}">${e.person}</span>
+                                <span class="font-medium text-gray-200">${e.item}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 flex items-center gap-1">
+                                <i class="fa-regular fa-credit-card"></i> ${e.card}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-gray-200 font-mono">¥${e.amountJPY.toLocaleString()}</div>
+                            <div class="text-xs text-gray-500 font-mono">≈ HKD ${hkd}</div>
+                        </div>
+                        <button onclick="deleteExpense(${e.id})" class="ml-3 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                    `;
+                }).join('');
+            }
+
+            document.getElementById('dailyEric').innerText = `¥${dailyEricTotal.toLocaleString()}`;
+            document.getElementById('dailyClement').innerText = `¥${dailyClementTotal.toLocaleString()}`;
+        }
+
+        function renderCharts() {
+            let totalEricJPY = 0;
+            let totalClementJPY = 0;
+            let cardSpendingHKD = {};
+
+            Object.keys(cardRules).forEach(c => cardSpendingHKD[c] = 0);
+
+            state.expenses.forEach(e => {
+                if (e.person === 'Eric') totalEricJPY += e.amountJPY;
+                if (e.person === 'Clement') totalClementJPY += e.amountJPY;
+                
+                const hkd = e.amountJPY * (state.rate / 100);
+                if (cardSpendingHKD[e.card] !== undefined) {
+                    cardSpendingHKD[e.card] += hkd;
+                }
+            });
+
+            document.getElementById('totalEricJPY').innerText = `¥ ${totalEricJPY.toLocaleString()}`;
+            document.getElementById('totalEricHKD').innerText = `HKD ${(totalEricJPY * state.rate / 100).toFixed(0)}`;
+            document.getElementById('totalClementJPY').innerText = `¥ ${totalClementJPY.toLocaleString()}`;
+            document.getElementById('totalClementHKD').innerText = `HKD ${(totalClementJPY * state.rate / 100).toFixed(0)}`;
+
+            const grid = document.getElementById('cardsGrid');
+            grid.innerHTML = ''; 
+            
+            let grandTotalRebate = 0;
+
+            Object.keys(cardRules).forEach((cardName, index) => {
+                const rule = cardRules[cardName];
+                const spent = cardSpendingHKD[cardName];
+                
+                let rebate = 0;
+                let statusColor = '';
+                let statusText = '';
+                
+                let segUnderMin = 0;
+                let segEligible = 0;
+                let segOverMax = 0;
+
+                if (spent < rule.min) {
+                    segUnderMin = spent;
+                    rebate = 0;
+                    statusText = `尚差 $${(rule.min - spent).toFixed(0)} 達標`;
+                    statusColor = 'text-gray-500';
+                } 
+                else if (spent <= rule.max) {
+                    segEligible = spent;
+                    rebate = spent * rule.rate;
+                    statusText = "符合回贈資格";
+                    statusColor = 'text-green-400';
+                } 
+                else {
+                    segEligible = rule.max;
+                    segOverMax = spent - rule.max;
+                    rebate = rule.max * rule.rate;
+                    statusText = "已達上限 (溢出)";
+                    statusColor = 'text-red-400';
+                }
+
+                grandTotalRebate += rebate;
+
+                const cardEl = document.createElement('div');
+                // Dark mode card
+                cardEl.className = "bg-jp-card p-4 rounded-2xl shadow-lg border border-gray-800 flex flex-col items-center";
+                cardEl.innerHTML = `
+                    <h3 class="font-bold text-gray-200 text-center mb-1">${cardName}</h3>
+                    <p class="text-xs text-gray-500 mb-2">上限: $${rule.max} | 下限: $${rule.min}</p>
+                    <div class="relative w-32 h-32 mb-3">
+                        <canvas id="chart-${index}"></canvas>
+                        <div class="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+                            <span class="text-xs text-gray-500">簽帳</span>
+                            <span class="font-bold font-mono text-gray-200">$${spent.toFixed(0)}</span>
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-900 rounded-lg p-2 flex justify-between items-center border border-gray-700">
+                        <span class="text-xs ${statusColor} font-medium">${statusText}</span>
+                        <div class="text-right">
+                            <span class="text-xs text-gray-500">回贈</span>
+                            <span class="font-bold text-jp-primary font-mono block">$${rebate.toFixed(1)}</span>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(cardEl);
+
+                const ctx = document.getElementById(`chart-${index}`).getContext('2d');
+                
+                const dataValues = spent === 0 ? [1] : [segUnderMin, segEligible, segOverMax];
+                // Dark mode chart colors: Gray (Under), Green (Eligible), Red (Over)
+                const bgColors = spent === 0 ? ['#374151'] : ['#4B5563', '#10B981', '#EF4444']; 
+
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['未達標', '合資格', '超額'],
+                        datasets: [{
+                            data: dataValues,
+                            backgroundColor: bgColors,
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: spent > 0 }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            });
+
+            document.getElementById('grandTotalRebate').innerText = `HKD ${grandTotalRebate.toFixed(1)}`;
+        }
+    </script>
+</body>
+</html>
